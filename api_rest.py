@@ -35,7 +35,7 @@ pwd_context = CryptContext(
 #Nous allons créer un user dans la base de données via les données recupérées en POST
 #https://www.pythonanywhere.com/forums/topic/11589/
 @app.route('/flask-base/create',methods=['POST'])
-def create():
+def createUser():
     cursor = None
     db = None
     try:
@@ -48,10 +48,10 @@ def create():
         cursor = db.cursor()
         for user in dataReq.get('datas'):
             
-            if isBlank(user.get('userName')):#user.get('email') n'est pas source d'erreur contrairement a user['email']
-                return jsonify({'hasError' : True , 'status': {'code':'900','message':'L\' identifiant est obligatoire' }})
+            if isBlank(user.get('userName')):#user.get('userName') n'est pas source d'erreur contrairement a user['userName']
+                return jsonify({'hasError' : True , 'status': {'code':'900','message':'Le nom d\'utilisateur est obligatoire' }})
             
-            if isBlank(user.get('password')):#user.get('email') n'est pas source d'erreur contrairement a user['email']
+            if isBlank(user.get('password')):#user.get('password') n'est pas source d'erreur contrairement a user['password']
                 return jsonify({'hasError' : True , 'status': {'code':'900','message':'Le mot de passe est obligatoire' }})
            
             hashedPassword = encrypt_password(user.get('password'))
@@ -62,6 +62,66 @@ def create():
             if cursor.lastrowid < 0:
                 return jsonify({'hasError' : True , 'status': {'code':'900','message':'Errur d\'insertion' }})
         
+        if db != None:
+            db.commit()
+    except Exception as e:
+        print (e)
+        if db != None:
+            db.rollback()
+
+        if cursor != None:
+             cursor.close()
+        return jsonify({'hasError' : True , 'status': {'code':'900','message':str(e) }})
+    finally:
+        if cursor != None:
+            cursor.close()
+
+    return jsonify({ 'status': {},'hasError' : False})
+
+@app.route('/flask-base/update',methods=['POST'])
+def updateUser():
+    cursor = None
+    db = None
+    try:
+        dataReq = request.data
+        dataReq = json.loads(dataReq)
+        if not isNotEmpty(dataReq.get('datas')):
+             return jsonify({'hasError' : True , 'status': {'code':'900','message':'La liste est vide' }})
+
+        db = mysql.connect()
+        cursor = db.cursor()
+        for user in dataReq.get('datas'):
+            
+            if not isInteger(user.get('id')):#user.get('id') n'est pas source d'erreur contrairement a user['id']
+                return jsonify({'hasError' : True , 'status': {'code':'900','message':'L\' identifiant est obligatoire' }})
+            
+            existingUser = getUserByKey(cursor,"id",user.get('id'))
+            existingUser = getData(existingUser)
+
+            if existingUser['hasError']:
+                return jsonify({'hasError' : True , 'status': {'code':'900','message':'Erreur lors de la sauvegarde' }})
+
+
+            existingUser = existingUser['user']
+            existingUser = existingUser[0]
+
+            if isNotBlank(user.get('userName')):#user.get('userName') n'est pas source d'erreur contrairement a user['userName']
+                existingUserName = getUserByKey(cursor,"user_name",user.get('userName'))
+                existingUserName = getData(existingUserName)
+                if existingUserName['hasError'] or (not existingUserName['hasError'] and len(existingUserName['user']) > 0):
+                    return jsonify({'hasError' : True , 'status': {'code':'900','message':'Donnée existante -> ' + user.get('userName')}})
+                
+                existingUser['user_name'] = user.get('userName')#eviter une erreur lors de l'insertions en base
+                #la colonne en base est user_name (on remplace donc userName par user_name)
+
+            if isNotBlank(user.get('password')):#user.get('password') n'est pas source d'erreur contrairement a user['password']
+                hashedPassword = encrypt_password(user.get('password'))
+                existingUser['password'] = hashedPassword
+            
+            if isNotBlank(user.get('email')):
+                existingUser['email'] = user.get('email')
+           
+            userUpdate(cursor,user)
         if db != None:
             db.commit()
     except Exception as e:
@@ -111,7 +171,9 @@ def userUpdate(cursor,user):
         insertValues = updateValues(user)
 
         userId = user.get('id')
-        query = "UPDATE user set{values} where id={id} ".format(id = userId, values = insertValues)
+        query = "UPDATE user set {values} where id={id} ".format(id = userId, values = insertValues)
+
+        print query
         cursor.execute(query)
 
     except Exception as e:
@@ -179,6 +241,9 @@ def encrypt_password(password):
 
 def check_encrypted_password(password, hashed):
     return pwd_context.verify(password, hashed)
+
+def getData(value):
+    return  json.loads(value.get_data())
 
 def updateValues(toUpdate):
     updates = list()
