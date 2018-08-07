@@ -137,9 +137,9 @@ def userGetAll(requestData,cursor):
     
     if requestData != None and isNotBlank(requestData.get('userName')):
         if "where" not in query: 
-            query = query +  " where `userName` = {key}".format(key =  requestData['userName'])
+            query = query +  " where `user_name` = {key}".format(key =  requestData['userName'])
         else:
-           query = query +  " and `userName` = {key}".format(key =  requestData['userName'])  
+           query = query +  " and `user_name` = {key}".format(key =  requestData['userName'])  
        
 
     if requestData != None and  isNotBlank(requestData.get('email')):
