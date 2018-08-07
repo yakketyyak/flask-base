@@ -130,7 +130,7 @@ def update():
             if isNotBlank(user.get('email')):
                 existingUser['email'] = user.get('email')
            
-            userUpdate(cursor,user)
+            userUpdate(cursor,existingUser)
         if db != None:
             db.commit()
     except Exception as e:
