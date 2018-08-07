@@ -35,7 +35,7 @@ pwd_context = CryptContext(
 #Nous allons créer un user dans la base de données via les données recupérées en POST
 #https://www.pythonanywhere.com/forums/topic/11589/
 @app.route('/flask-base/create',methods=['POST'])
-def createUser():
+def create():
     cursor = None
     db = None
     try:
@@ -79,7 +79,7 @@ def createUser():
     return jsonify({ 'status': {},'hasError' : False})
 
 @app.route('/flask-base/update',methods=['POST'])
-def updateUser():
+def update():
     cursor = None
     db = None
     try:
@@ -106,12 +106,21 @@ def updateUser():
             existingUser = existingUser[0]
 
             if isNotBlank(user.get('userName')):#user.get('userName') n'est pas source d'erreur contrairement a user['userName']
-                existingUserName = getUserByKey(cursor,"user_name",user.get('userName'))
-                existingUserName = getData(existingUserName)
-                if existingUserName['hasError'] or (not existingUserName['hasError'] and len(existingUserName['user']) > 0):
+                rl = getUserByKey(cursor,"user_name",user.get('userName'))
+                rl = getData(rl)
+                if rl['hasError']:
                     return jsonify({'hasError' : True , 'status': {'code':'900','message':'Donnée existante -> ' + user.get('userName')}})
+
+                if not rl['hasError']:
+                    rl = rl['user']
+                    if len(rl) > 0:
+                        #un uer a été trouvé on vérifie si les ids sont différents
+                        rl = rl [0]     
+                        if int(rl.get('id')) != int(existingUser.get('id')):#oubien user.get('id')
+                            return jsonify({'hasError' : True, 'status': {'code':'900','message':'Donnee existante ->' + user.get('name')}})
                 
-                existingUser['user_name'] = user.get('userName')#eviter une erreur lors de l'insertions en base
+                existingUser['user_name'] = user.get('userName')
+                existingUser['user_name'] = user.pop('userName')#remplacer userName par user_name
                 #la colonne en base est user_name (on remplace donc userName par user_name)
 
             if isNotBlank(user.get('password')):#user.get('password') n'est pas source d'erreur contrairement a user['password']
