@@ -5,6 +5,10 @@ from flask_restful import Resource, Api
 from flaskext.mysql import MySQL
 from flask_cors import CORS
 import re
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
+
 
 from passlib.context import CryptContext
 
@@ -51,6 +55,14 @@ def create():
             if isBlank(user.get('userName')):#user.get('userName') n'est pas source d'erreur contrairement a user['userName']
                 return jsonify({'hasError' : True , 'status': {'code':'900','message':'Le nom d\'utilisateur est obligatoire' }})
             
+            rl = getUserByKey(cursor,"user_name",user.get('userName'))
+            rl = getData(rl)
+            if rl['hasError']:
+                return jsonify({'hasError' : True , 'status': {'code':'900','message':'Donnée existante -> ' + user.get('userName')}})
+            
+            if not rl['hasError'] and len(rl['user']) > 0:
+                return jsonify({'hasError' : True , 'status': {'code':'900','message':'Donnée existante -> ' + user.get('userName')}})
+
             if isBlank(user.get('password')):#user.get('password') n'est pas source d'erreur contrairement a user['password']
                 return jsonify({'hasError' : True , 'status': {'code':'900','message':'Le mot de passe est obligatoire' }})
            
@@ -147,6 +159,95 @@ def update():
 
     return jsonify({ 'status': {},'hasError' : False})
 
+@app.route('/flask-base/delete',methods=['POST'])
+def delete():
+    cursor = None
+    db = None
+    try:
+        dataReq = request.data
+        dataReq = json.loads(dataReq)
+        if not isNotEmpty(dataReq.get('datas')):
+             return jsonify({'hasError' : True , 'status': {'code':'900','message':'La liste est vide' }})
+
+        db = mysql.connect()
+        cursor = db.cursor()
+        for user in dataReq.get('datas'):
+            
+            if not isInteger(user.get('id')):#user.get('id') n'est pas source d'erreur contrairement a user['id']
+                return jsonify({'hasError' : True , 'status': {'code':'900','message':'L\' identifiant est obligatoire' }})
+            
+            existingUser = getUserByKey(cursor,"id",user.get('id'))
+            existingUser = getData(existingUser)
+
+            if existingUser['hasError']:
+                return jsonify({'hasError' : True , 'status': {'code':'900','message':'Erreur lors de la sauvegarde' }})
+            
+            if len(existingUser['user']) == 0:
+                return jsonify({'hasError' : True , 'status': {'code':'900','message':'Donnée inexistante -> ' + str(user.get('id')) }})
+
+        ids = [user.get('id') for user in dataReq.get('datas')]
+        userDelete(cursor,ids)
+        if db != None:
+            db.commit()
+    except Exception as e:
+        print (e)
+        if db != None:
+            db.rollback()
+
+        if cursor != None:
+             cursor.close()
+        return jsonify({'hasError' : True , 'status': {'code':'900','message':str(e) }})
+    finally:
+        if cursor != None:
+            cursor.close()
+
+    return jsonify({ 'status': {},'hasError' : False})
+
+@app.route('/flask-base/getAll',methods=['POST'])
+def getAll():
+    cursor = None
+    db = None
+    count = 0
+    items = []
+    try:
+        dataReq = request.data
+        dataReq = json.loads(dataReq)
+        if not isNotEmpty(dataReq.get('data')):
+             return jsonify({'hasError' : True , 'status': {'code':'900','message':'La liste est vide' }})
+
+        db = mysql.connect()
+        cursor = db.cursor()
+
+        requestData = dataReq.copy()
+        if requestData.get('index') != None:
+            requestData['index'] = None
+        
+        if requestData.get('size') != None:
+            requestData['size'] = None
+
+        count = userGetAll(dataReq,cursor)
+        count = getData(count)
+        if count['hasError']:
+            return jsonify({'hasError' : True , 'status': {'code':'900','message':'Erreur interne' }})
+        count = len(count['users'])
+
+        users = userGetAll(dataReq,cursor)
+        users = getData(users)
+        if users['hasError']:
+            return jsonify({'hasError' : True , 'status': {'code':'900','message':'Erreur interne' }})
+        
+        items = users['users']
+
+    except Exception as e:
+        print (e)
+        if cursor != None:
+             cursor.close()
+        return jsonify({'hasError' : True , 'status': {'code':'900','message':str(e) }})
+    finally:
+        if cursor != None:
+            cursor.close()
+
+    return jsonify({ 'status': {}, 'items': items,'count': count, 'hasError' : False})
 
 #USER
 def createUser(cursor,user):
@@ -204,7 +305,7 @@ def userDelete(cursor,userIds):
     return jsonify({ 'hasError' : False})
 
 def userGetAll(requestData,cursor):
-    query = "SELECT * from user "
+    query = "SELECT id,user_name userName, email from user "
     
     if requestData != None and isNotBlank(requestData.get('userName')):
         if "where" not in query: 
