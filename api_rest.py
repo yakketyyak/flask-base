@@ -38,14 +38,14 @@ pwd_context = CryptContext(
 
 #Nous allons créer un user dans la base de données via les données recupérées en POST
 #https://www.pythonanywhere.com/forums/topic/11589/
-@app.route('/flask-base/create',methods=['POST'])
+@app.route('/flask-base/create',methods=['POST']) #permet de définir le endpoint de notre service REST
 def create():
     cursor = None
     db = None
     try:
-        dataReq = request.data
+        dataReq = request.data #récupération du corps de la requête
         dataReq = json.loads(dataReq)
-        if not isNotEmpty(dataReq.get('datas')):
+        if not isNotEmpty(dataReq.get('datas')): #mes contraintes 
              return jsonify({'hasError' : True , 'status': {'code':'900','message':'La liste est vide' }})
 
         db = mysql.connect()
