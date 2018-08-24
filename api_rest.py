@@ -4,6 +4,7 @@ from flask import Flask, jsonify, Response, json, request
 from flask_restful import Resource, Api
 from flaskext.mysql import MySQL
 from flask_cors import CORS
+import requests
 import re
 import sys
 reload(sys)
@@ -42,6 +43,7 @@ pwd_context = CryptContext(
 def create():
     cursor = None
     db = None
+    items = list()
     try:
         dataReq = request.data #récupération du corps de la requête
         dataReq = json.loads(dataReq)
@@ -70,10 +72,12 @@ def create():
             user['password'] = hashedPassword
             user['user_name'] = user.pop('userName')#eviter une erreur lors de l'insertions en base
             #la colonne en base est user_name (on remplace donc userName par user_name)
-            createUser(cursor,user)
-            if cursor.lastrowid < 0:
-                return jsonify({'hasError' : True , 'status': {'code':'900','message':'Errur d\'insertion' }})
-        
+            #createUser(cursor,user)
+            #if cursor.lastrowid < 0:
+            #    return jsonify({'hasError' : True , 'status': {'code':'900','message':'Errur d\'insertion' }})
+            items.append(user)
+        #test saveAll
+        saveAll(cursor,db,items)
         if db != None:
             db.commit()
     except Exception as e:
@@ -83,7 +87,7 @@ def create():
 
         if cursor != None:
              cursor.close()
-        return jsonify({'hasError' : True , 'status': {'code':'900','message':str(e) }})
+        return jsonify({'hasError' : True , 'items':items , 'status': {'code':'900','message':str(e) }})
     finally:
         if cursor != None:
             cursor.close()
@@ -249,6 +253,13 @@ def getAll():
 
     return jsonify({ 'status': {}, 'items': items,'count': count, 'hasError' : False})
 
+@app.route('/flask-base/testREST',methods=['POST']) #permet de définir le endpoint de notre service REST
+def testRest():
+    r = requests.get('http://localhost:8080/hello-world-1.0/helloWorld/get')
+    print json.loads(r.text)
+    return jsonify({ 'status': {},'hasError' : False})
+
+
 #USER
 def createUser(cursor,user):
     try:
@@ -257,6 +268,18 @@ def createUser(cursor,user):
         query = "INSERT INTO user({insertKeys})  VALUES({values})".format(insertKeys = insertKeys, values = insertValues)
         cursor.execute(query)
 
+    except Exception as e:
+        print (e)
+        return jsonify({'hasError' : True , 'message' :str(e)})
+
+    return jsonify({'hasError' : False})
+
+def saveAll(cursor,db,users):
+    try:
+        print users
+        query = "INSERT INTO `user` ( `user_name`,  `password` , `email` ) VALUES ( %(user_name)s, %(password)s, %(email)s )"
+        cursor.executemany(query,users)
+        db.commit()
     except Exception as e:
         print (e)
         return jsonify({'hasError' : True , 'message' :str(e)})
